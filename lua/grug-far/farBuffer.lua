@@ -232,6 +232,22 @@ local function getActions(buf, context)
         get_inst():goto_prev_input()
       end,
     },
+    {
+      text = 'Toggle Preview',
+      keymap = keymaps.togglePreview,
+      description = 'Toggle preview mode on/off.',
+      action = function()
+        vim.notify('TODO: Implement Toggle Preview', vim.log.levels.WARN)
+      end,
+    },
+    {
+      text = 'Smart Toggle Focus',
+      keymap = keymaps.smartToggleFocus,
+      description = 'Toggle focus between inputs/results or preview window/results',
+      action = function()
+        vim.notify('TODO: Smart Toggle Focus', vim.log.levels.WARN)
+      end,
+    },
   }
 end
 

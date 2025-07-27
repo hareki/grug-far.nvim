@@ -70,6 +70,8 @@ local function createContext(options)
       normalModeSearch = options.normalModeSearch,
       searchDisabled = false,
       previousInputValues = {},
+      previewEnabled = true,
+      switchingToPreview = false,
     },
   }
 
