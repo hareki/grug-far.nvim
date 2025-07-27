@@ -506,6 +506,21 @@ function M.setupBuffer(win, buf, context, on_ready)
         ---@cast markId integer
         context.state.lastCursorLocation = { loc = loc, row = cursor_row, markId = markId }
       end
+
+      ---------------------
+      local isValidPreviewLocation = loc and loc.col
+      local isPreviewOpen = context.state.previewWin
+        and vim.api.nvim_win_is_valid(context.state.previewWin)
+      local isPreviewEnabled = context.state.previewEnabled
+
+      if isValidPreviewLocation and isPreviewEnabled then
+        require('grug-far').get_instance(buf):preview_location()
+      end
+
+      -- Close preview window if cursor is not on a valid location
+      if not isValidPreviewLocation and isPreviewOpen then
+        require('grug-far.actions.previewLocationUtils').closePreviewWindow(context)
+      end
     end,
   })
 
