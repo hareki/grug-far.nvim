@@ -326,6 +326,8 @@ grug_far.defaultOptions = {
     syncFile = { n = '<localleader>v' },
     nextInput = { n = '<tab>' },
     prevInput = { n = '<s-tab>' },
+    togglePreview = false,
+    smartToggleFocus = false,
   },
 
   -- separator between inputs and results, default depends on nerdfont
@@ -604,6 +606,8 @@ grug_far.defaultOptions = {
 ---@field syncFile KeymapDef
 ---@field nextInput KeymapDef
 ---@field prevInput KeymapDef
+---@field togglePreview KeymapDef
+---@field smartToggleFocus KeymapDef
 
 ---@class grug.far.KeymapsOverride
 ---@field replace? KeymapDef
@@ -633,6 +637,8 @@ grug_far.defaultOptions = {
 ---@field syncFile? KeymapDef
 ---@field nextInput? KeymapDef
 ---@field prevInput? KeymapDef
+---@field togglePreview KeymapDef
+---@field smartToggleFocus KeymapDef
 ---@private
 
 ---@class grug.far.AutoSaveTable
