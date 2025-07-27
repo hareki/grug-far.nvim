@@ -360,6 +360,24 @@ function inst:preview_location()
   require('grug-far.actions.previewLocation')(self._params)
 end
 
+function inst:toggle_preview()
+  self:ensure_open()
+  local context = self._context
+  context.state.previewEnabled = not context.state.previewEnabled
+
+  if not context.state.previewEnabled then
+    require('grug-far.actions.previewLocationUtils').closePreviewWindow(context)
+  else
+    local cursor_row = vim.api.nvim_win_get_cursor(0)[1]
+    local resultsList = require('grug-far.render.resultsList')
+    local location = resultsList.getResultLocation(cursor_row - 1, self._buf, context)
+
+    if location and location.col then
+      self:preview_location()
+    end
+  end
+end
+
 --- swaps replacement interperter with the next one as configured through
 --- options.enabledReplacementInterpreters
 function inst:swap_replacement_interpreter()
