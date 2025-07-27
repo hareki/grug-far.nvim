@@ -27,6 +27,9 @@
 ---@field normalModeSearch boolean
 ---@field searchDisabled boolean
 ---@field previousInputValues { [string]: string }
+---@field previewWin? integer
+---@field previewEnabled boolean
+---@field switchingToPreview boolean
 
 ---@class grug.far.Action
 ---@field text string
