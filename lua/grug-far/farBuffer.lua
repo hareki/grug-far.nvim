@@ -237,7 +237,7 @@ local function getActions(buf, context)
       keymap = keymaps.togglePreview,
       description = 'Toggle preview mode on/off.',
       action = function()
-        vim.notify('TODO: Implement Toggle Preview', vim.log.levels.WARN)
+        get_inst():toggle_preview()
       end,
     },
     {
