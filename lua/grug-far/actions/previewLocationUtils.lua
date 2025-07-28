@@ -144,8 +144,7 @@ local function setupKeymaps(params, preview_buf)
       'Toggle focus back to grug-far window',
       toggle_keymap,
       function()
-        vim.notify('TODO: Smart Toggle Focus')
-        -- require('grug-far').get_instance(pagrugfar_buf):toggle_preview_focus()
+        require('grug-far').get_instance(params.grugfar_buf):toggle_preview_focus()
       end
     )
   end

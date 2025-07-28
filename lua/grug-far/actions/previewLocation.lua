@@ -34,7 +34,7 @@ local function previewLocation(params)
     relative = 'win',
     width = width,
     height = math.floor(height / 3),
-    focusable = true,
+    focusable = false,
     win = grugfar_win,
     border = 'rounded',
     style = 'minimal',
