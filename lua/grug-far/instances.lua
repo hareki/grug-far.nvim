@@ -378,6 +378,51 @@ function inst:toggle_preview()
   end
 end
 
+--- toggle focus between grug-far window and preview window
+function inst:toggle_preview_focus()
+  self:ensure_open()
+
+  local grugfar_win = vim.fn.bufwinid(self._buf)
+  local preview_win = self._context.state.previewWin
+
+  if not preview_win or not vim.api.nvim_win_is_valid(preview_win) then
+    return
+  end
+
+  local current_win = vim.api.nvim_get_current_win()
+  if current_win == grugfar_win then
+    -- set a flag to prevent auto-closing during focus switch
+    self._context.state.switchingToPreview = true
+    vim.api.nvim_set_current_win(preview_win)
+  else
+    vim.api.nvim_set_current_win(grugfar_win)
+  end
+end
+
+--- toggle focus between first input and first result
+function inst:toggle_input_result_focus()
+  self:ensure_open()
+
+  local cursor_row = vim.api.nvim_win_get_cursor(vim.fn.bufwinid(self._buf))[1]
+  local location = require('grug-far.render.resultsList').getResultLocation(
+    cursor_row - 1,
+    self._buf,
+    self._context
+  )
+
+  local isValidPreviewLocation = location and location.col
+  local isResultSection = isValidPreviewLocation
+    --- Check this only when the location is nil, slightly more efficient
+    or not require('grug-far.inputs').getInputAtRow(self._context, self._buf, cursor_row - 1)
+
+  if isResultSection then
+    self:goto_first_input()
+  else
+    -- wrap = false => prevent going to the first result if it's already on the last
+    self:goto_next_match({ wrap = false })
+  end
+end
+
 --- swaps replacement interperter with the next one as configured through
 --- options.enabledReplacementInterpreters
 function inst:swap_replacement_interpreter()
