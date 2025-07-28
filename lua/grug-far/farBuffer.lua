@@ -245,7 +245,15 @@ local function getActions(buf, context)
       keymap = keymaps.smartToggleFocus,
       description = 'Toggle focus between inputs/results or preview window/results',
       action = function()
-        vim.notify('TODO: Smart Toggle Focus', vim.log.levels.WARN)
+        local instance = get_inst()
+        local cursor_row = vim.api.nvim_win_get_cursor(vim.fn.bufwinid(instance._buf))[1]
+        local location = resultsList.getResultLocation(cursor_row - 1, instance._buf, context)
+
+        if context.state.previewEnabled and location and location.col then
+          instance:toggle_preview_focus()
+        else
+          instance:toggle_input_result_focus()
+        end
       end,
     },
   }
@@ -508,6 +516,7 @@ function M.setupBuffer(win, buf, context, on_ready)
       end
 
       ---------------------
+
       local isValidPreviewLocation = loc and loc.col
 
       if context.state.previewEnabled then
