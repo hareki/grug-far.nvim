@@ -25,6 +25,7 @@ local function previewLocation(params)
       location = location,
       grugfar_buf = grugfar_buf,
     })
+    return
   end
 
   local width = vim.api.nvim_win_get_width(0)
@@ -39,7 +40,11 @@ local function previewLocation(params)
     style = 'minimal',
   }, context.options.previewWindow)
 
-  context.state.previewWin = vim.api.nvim_open_win(0, true, previewWinConfig)
+  -- Using 0 or grugfar_buf as the starting buffer for previewWin will trigger the BufLeave event in farBuffer.lua
+  -- Since we will replace that buffer with the preview buffer
+  local scratch_buf = vim.api.nvim_create_buf(false, true)
+  context.state.previewWin = vim.api.nvim_open_win(scratch_buf, false, previewWinConfig)
+
   previewUtils.setupPreviewBuffer({
     context = context,
     location = location,

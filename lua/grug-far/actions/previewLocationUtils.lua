@@ -167,7 +167,6 @@ function M.setupPreviewBuffer(params)
 
   vim.api.nvim_win_set_buf(preview_win, preview_buf)
   vim.api.nvim_win_set_cursor(preview_win, { params.location.lnum, params.location.col - 1 })
-  vim.api.nvim_set_current_win(grugfar_win)
 
   addMatchHighlighting(params, preview_buf)
   setupKeymaps(params, preview_buf)
