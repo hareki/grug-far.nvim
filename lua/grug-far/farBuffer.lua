@@ -232,6 +232,30 @@ local function getActions(buf, context)
         get_inst():goto_prev_input()
       end,
     },
+    {
+      text = 'Toggle Preview',
+      keymap = keymaps.togglePreview,
+      description = 'Toggle preview mode on/off.',
+      action = function()
+        get_inst():toggle_preview()
+      end,
+    },
+    {
+      text = 'Smart Toggle Focus',
+      keymap = keymaps.smartToggleFocus,
+      description = 'Toggle focus between inputs/results or preview window/results',
+      action = function()
+        local instance = get_inst()
+        local cursor_row = vim.api.nvim_win_get_cursor(vim.fn.bufwinid(instance._buf))[1]
+        local location = resultsList.getResultLocation(cursor_row - 1, instance._buf, context)
+
+        if context.state.previewEnabled and location and location.col then
+          instance:toggle_preview_focus()
+        else
+          instance:toggle_input_result_focus()
+        end
+      end,
+    },
   }
 end
 
@@ -489,6 +513,46 @@ function M.setupBuffer(win, buf, context, on_ready)
         local markId = unpack(mark)
         ---@cast markId integer
         context.state.lastCursorLocation = { loc = loc, row = cursor_row, markId = markId }
+      end
+
+      ---------------------
+
+      local isValidPreviewLocation = loc and loc.col
+
+      if context.state.previewEnabled then
+        if isValidPreviewLocation then
+          require('grug-far').get_instance(buf):preview_location()
+        else
+          require('grug-far.actions.previewLocationUtils').closePreviewWindow(context)
+        end
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ 'BufLeave' }, {
+    group = context.augroup,
+    buffer = buf,
+    callback = function()
+      if context.state.switchingToPreview then
+        context.state.switchingToPreview = false
+        return
+      end
+
+      require('grug-far.actions.previewLocationUtils').closePreviewWindow(context)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ 'BufEnter' }, {
+    group = context.augroup,
+    buffer = buf,
+    callback = function()
+      -- Open preview window when entering grug-far buffer if cursor is on valid location and preview is enabled
+      if is_ready and context.state.previewEnabled then
+        local cursor_row = vim.api.nvim_win_get_cursor(0)[1]
+        local loc = resultsList.getResultLocation(cursor_row - 1, buf, context)
+        if loc and loc.col then
+          require('grug-far').get_instance(buf):preview_location()
+        end
       end
     end,
   })

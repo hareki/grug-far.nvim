@@ -1,13 +1,30 @@
-local resultsList = require('grug-far.render.resultsList')
-local utils = require('grug-far.utils')
-
 local function previewLocation(params)
-  local buf = params.buf
+  ---@type grug.far.Context
   local context = params.context
-  local grugfar_win = vim.fn.bufwinid(buf)
-  local cursor_row = unpack(vim.api.nvim_win_get_cursor(grugfar_win))
-  local location = resultsList.getResultLocation(cursor_row - 1, buf, context)
+
+  if not context.state.previewEnabled then
+    return
+  end
+
+  local resultsList = require('grug-far.render.resultsList')
+  local previewUtils = require('grug-far.actions.previewLocationUtils')
+
+  local grugfar_buf = params.buf
+  local grugfar_win = vim.fn.bufwinid(grugfar_buf)
+
+  local cursor_row = vim.api.nvim_win_get_cursor(grugfar_win)[1]
+  local location = resultsList.getResultLocation(cursor_row - 1, grugfar_buf, context)
+
   if location == nil then
+    return
+  end
+
+  if context.state.previewWin and vim.api.nvim_win_is_valid(context.state.previewWin) then
+    previewUtils.setupPreviewBuffer({
+      context = context,
+      location = location,
+      grugfar_buf = grugfar_buf,
+    })
     return
   end
 
@@ -17,23 +34,22 @@ local function previewLocation(params)
     relative = 'win',
     width = width,
     height = math.floor(height / 3),
-    bufpos = { vim.fn.line('.') - 1, vim.fn.col('.') },
-    focusable = true,
+    focusable = false,
     win = grugfar_win,
     border = 'rounded',
     style = 'minimal',
   }, context.options.previewWindow)
 
-  local w = vim.api.nvim_open_win(0, true, previewWinConfig)
-  local bufnr = vim.fn.bufnr(location.filename)
-  if bufnr == -1 then
-    vim.fn.win_execute(w, 'e ' .. utils.escape_path_for_cmd(location.filename), true)
-  else
-    vim.api.nvim_win_set_buf(w, bufnr)
-  end
-  vim.api.nvim_win_set_cursor(w, { location.lnum, location.col - 1 })
-  local b = vim.fn.winbufnr(w)
-  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = b })
+  -- Using 0 or grugfar_buf as the starting buffer for previewWin will trigger the BufLeave event in farBuffer.lua
+  -- Since we will replace that buffer with the preview buffer
+  local scratch_buf = vim.api.nvim_create_buf(false, true)
+  context.state.previewWin = vim.api.nvim_open_win(scratch_buf, false, previewWinConfig)
+
+  previewUtils.setupPreviewBuffer({
+    context = context,
+    location = location,
+    grugfar_buf = grugfar_buf,
+  })
 end
 
 return previewLocation
