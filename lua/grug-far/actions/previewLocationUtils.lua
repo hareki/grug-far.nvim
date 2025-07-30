@@ -11,13 +11,15 @@ local M = {}
 ---@param filename string
 local function getPreviewBuffer(filename)
   local utils = require('grug-far.utils')
-  local bufnr = vim.fn.bufnr(filename)
+  local buf_name = 'grug-far-preview:///' .. filename
+  local bufnr = vim.fn.bufnr(buf_name)
 
   if bufnr == -1 then
-    -- Create a scratch buffer and load file content manually (to prevent LSP kickoff)
     bufnr = vim.api.nvim_create_buf(false, true)
-    -- vim.bo[bufnr].bufhidden = 'wipe'
+    vim.api.nvim_buf_set_name(bufnr, buf_name)
+
     local lines = utils.readFileLinesSync(filename)
+
     if lines then
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
       local ft = utils.getFileType(filename)
@@ -27,8 +29,12 @@ local function getPreviewBuffer(filename)
           vim.bo[bufnr].syntax = ft
         end
       end
+
+      vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = bufnr })
+      vim.api.nvim_set_option_value('modifiable', false, { buf = bufnr })
     end
   end
+
   return bufnr
 end
 
@@ -95,46 +101,29 @@ local function setupKeymaps(params, preview_buf)
   local utils = require('grug-far.utils')
   local keymaps = params.context.options.keymaps
 
-  utils.setBufKeymap(preview_buf, 'Close preview window', { n = 'q' }, function()
+  local function focusGrugfarWin()
     local grugfar_win = vim.fn.bufwinid(params.grugfar_buf)
     if grugfar_win ~= -1 then
       vim.api.nvim_set_current_win(grugfar_win)
     end
+    return grugfar_win
+  end
+
+  utils.setBufKeymap(preview_buf, 'Close preview window', { n = 'q' }, function()
+    focusGrugfarWin()
 
     M.closePreviewWindow(params.context)
   end)
 
   utils.setBufKeymap(preview_buf, 'Close preview and open location', { n = '<CR>' }, function()
-    -- Focus back to grug-far window before closing preview
-    local grugfar_win = vim.fn.bufwinid(params.grugfar_buf)
-    if grugfar_win ~= -1 then
-      vim.api.nvim_set_current_win(grugfar_win)
-    end
+    local grugfar_win = focusGrugfarWin()
 
     M.closePreviewWindow(params.context)
 
-    if grugfar_win ~= -1 then
-      local utils_grug = require('grug-far.utils')
-      local targetWin = utils_grug.getOpenTargetWin(params.context, params.grugfar_buf)
-
-      -- Open the real file buffer
-      local real_file_buf = vim.fn.bufnr(params.location.filename)
-      if real_file_buf == -1 then
-        vim.fn.win_execute(
-          targetWin,
-          'silent! edit ' .. utils_grug.escape_path_for_cmd(params.location.filename),
-          true
-        )
-      else
-        vim.api.nvim_win_set_buf(targetWin, real_file_buf)
-      end
-
-      vim.api.nvim_set_current_win(targetWin)
-      vim.api.nvim_win_set_cursor(
-        targetWin,
-        { params.location.lnum or 1, params.location.col and params.location.col - 1 or 0 }
-      )
-    end
+    require('grug-far.actions.gotoLocation')({
+      buf = params.grugfar_buf,
+      context = params.context,
+    })
   end)
 
   local toggle_keymap = keymaps.smartToggleFocus
@@ -160,9 +149,9 @@ end
 
 ---@param params grug.far.SetupPreviewBufferParams
 function M.setupPreviewBuffer(params)
-  local preview_buf = getPreviewBuffer(params.location.filename)
   local preview_win = params.context.state.previewWin
   local grugfar_win = vim.fn.bufwinid(params.grugfar_buf)
+  local preview_buf = getPreviewBuffer(params.location.filename)
 
   vim.api.nvim_win_set_buf(preview_win, preview_buf)
   vim.api.nvim_win_set_cursor(preview_win, { params.location.lnum, params.location.col - 1 })

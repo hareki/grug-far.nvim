@@ -16,15 +16,11 @@ local function gotoLocation(params)
   local bufnr = vim.fn.bufnr(location.filename)
   local targetWin = utils.getOpenTargetWin(context, buf)
 
-  if bufnr == -1 then
-    vim.fn.win_execute(
-      targetWin,
-      'silent! edit ' .. utils.escape_path_for_cmd(location.filename),
-      true
-    )
-  else
-    vim.api.nvim_win_set_buf(targetWin, bufnr)
-  end
+  vim.fn.win_execute(
+    targetWin,
+    'silent! edit ' .. utils.escape_path_for_cmd(location.filename),
+    true
+  )
 
   vim.api.nvim_set_current_win(targetWin)
 
