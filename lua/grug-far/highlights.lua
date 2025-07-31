@@ -38,6 +38,7 @@ local highlights = {
   GrugFarResultsLongLineStr = { default = true, link = 'Comment' },
 
   GrugFarVisualBufrange = { default = true, link = 'Visual' },
+  GrugFarPreview = { default = true, link = 'Search' },
 }
 
 ---@private
