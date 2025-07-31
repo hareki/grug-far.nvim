@@ -45,16 +45,6 @@ local function addMatchHighlighting(params, preview_buf)
   vim.api.nvim_buf_clear_namespace(preview_buf, 0, 0, -1)
 
   if params.location.lnum then
-    -- Highlight the entire result line with a subtle background
-    vim.api.nvim_buf_add_highlight(
-      preview_buf,
-      0,
-      'CursorLine', -- Use a subtle highlight for the entire line
-      params.location.lnum - 1,
-      0,
-      -1
-    )
-
     -- If we have match column information, highlight the specific match
     if params.location.col and params.location.text then
       local search_inputs = require('grug-far.inputs').getValues(params.context, params.grugfar_buf)
@@ -70,7 +60,7 @@ local function addMatchHighlighting(params, preview_buf)
           vim.api.nvim_buf_add_highlight(
             preview_buf,
             0,
-            'Search', -- Use Search highlight group for the actual match
+            'GrugFarPreview',
             params.location.lnum - 1,
             match_start - 1,
             match_end
@@ -83,7 +73,7 @@ local function addMatchHighlighting(params, preview_buf)
             vim.api.nvim_buf_add_highlight(
               preview_buf,
               0,
-              'Search',
+              'GrugFarPreview',
               params.location.lnum - 1,
               match_start_regex - 1,
               match_end_regex
