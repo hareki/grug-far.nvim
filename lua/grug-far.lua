@@ -71,7 +71,6 @@ local function createContext(options)
       searchDisabled = false,
       previousInputValues = {},
       previewEnabled = true,
-      switchingToPreview = false,
     },
   }
 
