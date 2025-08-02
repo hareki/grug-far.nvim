@@ -390,13 +390,9 @@ function inst:toggle_preview_focus()
   end
 
   local current_win = vim.api.nvim_get_current_win()
-  if current_win == grugfar_win then
-    -- set a flag to prevent auto-closing during focus switch
-    self._context.state.switchingToPreview = true
-    vim.api.nvim_set_current_win(preview_win)
-  else
-    vim.api.nvim_set_current_win(grugfar_win)
-  end
+  local target_win = current_win == grugfar_win and preview_win or grugfar_win
+
+  vim.cmd(string.format('noautocmd lua vim.api.nvim_set_current_win(%s)', target_win))
 end
 
 --- toggle focus between first input and first result
