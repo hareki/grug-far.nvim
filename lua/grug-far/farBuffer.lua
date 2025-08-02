@@ -533,11 +533,6 @@ function M.setupBuffer(win, buf, context, on_ready)
     group = context.augroup,
     buffer = buf,
     callback = function()
-      if context.state.switchingToPreview then
-        context.state.switchingToPreview = false
-        return
-      end
-
       require('grug-far.actions.previewLocationUtils').closePreviewWindow(context)
     end,
   })
