@@ -46,6 +46,32 @@ end
 ---@return fun()? abort
 local function getResultsWithReplaceDiff(params)
   local json_data = params.json_data
+
+  local has_matches = false
+  local needs_replacement = true
+  for _, json_result in ipairs(json_data) do
+    if json_result.type == 'match' then
+      local first_submatch = json_result.data.submatches[1]
+      if first_submatch then
+        has_matches = true
+        needs_replacement = not first_submatch.replacement
+        break
+      end
+    end
+  end
+  if not has_matches then
+    params.on_finish('success', nil, nil)
+    return
+  end
+
+  local bufrange = vim.deepcopy(params.bufrange)
+  local showDiff = params.options.engines.ripgrep.showReplaceDiff
+  if not needs_replacement then
+    local results = parseResults.parseResults(json_data, true, showDiff, bufrange, true)
+    params.on_finish('success', nil, results)
+    return
+  end
+
   local matches_for_replacement = {}
   for _, json_result in ipairs(json_data) do
     if json_result.type == 'match' then
@@ -53,10 +79,6 @@ local function getResultsWithReplaceDiff(params)
         table.insert(matches_for_replacement, submatch.match.text)
       end
     end
-  end
-  if #matches_for_replacement == 0 then
-    params.on_finish('success', nil, nil)
-    return
   end
 
   local stdin = uv.new_pipe()
@@ -80,7 +102,6 @@ local function getResultsWithReplaceDiff(params)
     inputString = inputString .. piece .. match_separator
   end
 
-  local bufrange = vim.deepcopy(params.bufrange)
   local hadNoResults = true
   local abort = fetchCommandOutput({
     cmd_path = params.options.engines.ripgrep.path,
@@ -104,7 +125,6 @@ local function getResultsWithReplaceDiff(params)
           end
         end
 
-        local showDiff = params.options.engines.ripgrep.showReplaceDiff
         local results = parseResults.parseResults(json_data, true, showDiff, bufrange, hadNoResults)
         if #results.lines > 0 then
           hadNoResults = false
@@ -224,8 +244,6 @@ local function run_search_with_replace(params)
     on_finish(nil, nil)
   end
 
-  local searchArgs = argUtils.stripReplaceArgs(params.args)
-
   local matches = {}
   processingQueue = ProcessingQueue.new(function(data, on_done)
     if #data == 0 then
@@ -274,7 +292,7 @@ local function run_search_with_replace(params)
 
   abortSearch, effectiveArgs = fetchCommandOutput({
     cmd_path = params.options.engines.ripgrep.path,
-    args = searchArgs,
+    args = params.args,
     stdin = params.stdin,
     on_fetch_chunk = function(data)
       processingQueue:push(data)
