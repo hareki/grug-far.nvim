@@ -48,6 +48,7 @@
 ---@field augroup integer
 ---@field extmarkIds {[string]: integer}
 ---@field state grug.far.State
+---@field initialWin? integer
 ---@field prevWin? integer
 ---@field prevBufName? string
 ---@field prevBufFiletype? string
