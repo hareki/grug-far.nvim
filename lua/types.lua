@@ -65,3 +65,4 @@
 ---@field start_row integer
 ---@field end_col integer
 ---@field end_row integer
+---@field visual_mode string
