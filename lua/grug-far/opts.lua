@@ -572,6 +572,28 @@ grug_far.defaultOptions = {
   -- you basically never want to disable this as it makes things a lot convenient, unless you are doing something
   -- very niche where you have re-mapped those base nvim keys
   smartInputHandling = true,
+
+  -- points where you can customize grug-far behaviour by providing additional logic to be executed
+  hooks = {
+    -- if provided, function is called before applying any file edit for replace/sync/etc.
+    -- example use case: if using perforce you can call `p4 edit <file>` before each file is changed by replace/sync
+    -- See type for function signature. The important points are:
+    -- 1. on_finish() must be called at some point and it takes an optional status and errorMessage
+    -- 2. you can optionally return an abort function (recommended). This is used to abort the process if it gets stuck for any reason.
+    --
+    -- example:
+    -- on_before_edit_file = function(on_finish, file)
+    --   return require('grug-far').spawn_cmd_async({
+    --     cmd_path = 'p4',
+    --     args = { 'edit', file.path},
+    --     on_finish = on_finish,
+    --   })
+    -- end,
+    --
+    -- *NOTE:* `spawn_cmd_async` is provided as a convenience that also handles abort (it returns abort function),
+    -- but you can implement your own logic of course.
+    on_before_edit_file = nil,
+  },
 }
 
 ---@alias KeymapDef grug.far.KeymapTable | string | boolean
@@ -825,6 +847,13 @@ grug_far.defaultOptions = {
 ---@field enabled? boolean
 ---@private
 
+---@class grug.far.EditFileDescriptor
+---@field path string
+---@field isBufferRange? boolean
+
+---@class grug.far.HooksTable
+---@field on_before_edit_file? grug.far.AsyncJobOneParam<grug.far.EditFileDescriptor>
+
 ---@alias FilterWindowFn fun(winid: number): boolean
 ---@alias WinPreferredLocation "prev" | "left" | "right" | "above" | "below"
 
@@ -913,6 +942,7 @@ grug_far.defaultOptions = {
 ---@field historyWindow vim.api.keyset.win_config
 ---@field previewWindow vim.api.keyset.win_config
 ---@field smartInputHandling boolean
+---@field hooks grug.far.HooksTable
 
 ---@class grug.far.OptionsOverride
 ---@field debounceMs? integer
@@ -969,6 +999,7 @@ grug_far.defaultOptions = {
 ---@field historyWindow? vim.api.keyset.win_config
 ---@field previewWindow? vim.api.keyset.win_config
 ---@field smartInputHandling? boolean
+---@field hooks? grug.far.HooksTable
 ---@private
 
 --- generates merged options

@@ -7,7 +7,7 @@ local fetchCommandOutput = require('grug-far.engine.fetchCommandOutput')
 --- inputs: grug.far.Inputs,
 --- options: grug.far.Options,
 --- report_progress: fun(count: integer),
---- on_finish: fun(status: grug.far.Status, errorMessage: string?, filesWithMatches: string[], blacklistedArgs: string[]?)
+--- on_finish: fun(status: grug.far.Status, errorMessage: string?, filesWithMatches: string[]?, blacklistedArgs: string[]?)
 ---}
 ---@return fun()? abort
 local function fetchFilesWithMatches(params)
@@ -33,7 +33,16 @@ local function fetchFilesWithMatches(params)
       params.report_progress(count)
     end,
     on_finish = function(status, errorMessage)
-      params.on_finish(status, errorMessage, filesWithMatches, blacklistedArgs)
+      if not status then
+        params.on_finish(
+          'error',
+          blacklistedArgs
+              and 'replace cannot work with flags: ' .. table.concat(blacklistedArgs, ', ')
+            or nil
+        )
+      else
+        params.on_finish(status, errorMessage, filesWithMatches)
+      end
     end,
   })
 end

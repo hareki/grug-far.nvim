@@ -5,6 +5,7 @@ local getArgs = require('grug-far.engine.ripgrep.getArgs')
 local argUtils = require('grug-far.engine.ripgrep.argUtils')
 local parseResults = require('grug-far.engine.ripgrep.parseResults')
 local utils = require('grug-far.utils')
+local async_job = require('grug-far.async_job')
 local uv = vim.uv
 
 local M = {}
@@ -159,67 +160,81 @@ M.replace = function(params)
     end
   end
 
-  local on_abort = nil
-  local function abort()
-    if on_abort then
-      on_abort()
-    end
-  end
-
   local bufrange, bufrange_err = utils.getBufrange(params.inputs.paths)
   if bufrange_err then
     params.on_finish('error', bufrange_err)
     return
   end
 
+  local hooks = params.options.hooks
+
   if bufrange then
-    on_abort = replaceInBufrange({
-      inputs = params.inputs,
-      options = params.options,
-      bufrange = bufrange,
-      replacement_eval_fn = replacement_eval_fn,
-      report_progress = function(count)
-        report_progress({ type = 'update_count', count = count })
-      end,
-      on_finish = on_finish,
-    })
-  else
-    on_abort = fetchFilesWithMatches({
-      inputs = params.inputs,
-      options = params.options,
-      report_progress = function(count)
-        report_progress({ type = 'update_total', count = count })
-      end,
-      on_finish = function(status, errorMessage, files, blacklistedArgs)
-        if not status then
-          on_finish(
-            nil,
-            nil,
-            blacklistedArgs
-                and 'replace cannot work with flags: ' .. table.concat(blacklistedArgs, ', ')
-              or nil
-          )
-          return
-        elseif status == 'error' then
-          on_finish(status, errorMessage)
-          return
-        end
-
-        on_abort = replaceInMatchedFiles({
-          files = files,
-          inputs = params.inputs,
-          options = params.options,
-          replacement_eval_fn = replacement_eval_fn,
-          report_progress = function(count)
-            report_progress({ type = 'update_count', count = count })
-          end,
-          on_finish = on_finish,
+    return async_job.chain(function(finish)
+      if hooks.on_before_edit_file then
+        report_progress({ type = 'message', message = 'running on before edit file hook' })
+        hooks.on_before_edit_file(finish, {
+          path = bufrange.file_name,
+          isBufferRange = true,
         })
-      end,
-    })
-  end
+      else
+        finish('success')
+      end
+    end, function(finish)
+      return replaceInBufrange({
+        inputs = params.inputs,
+        options = params.options,
+        bufrange = bufrange,
+        replacement_eval_fn = replacement_eval_fn,
+        report_progress = function(count)
+          report_progress({ type = 'update_count', count = count })
+        end,
+        on_finish = finish,
+      })
+    end)(on_finish)
+  else
+    return async_job.chain(function(finish)
+      return fetchFilesWithMatches({
+        inputs = params.inputs,
+        options = params.options,
+        report_progress = function(count)
+          report_progress({ type = 'update_total', count = count })
+        end,
+        on_finish = finish,
+      })
+    end, function(finish, files)
+      if hooks.on_before_edit_file then
+        report_progress({ type = 'message', message = 'running on before edit file hook' })
 
-  return abort
+        return async_job.parallel_process({
+          items = vim
+            .iter(files)
+            :map(function(file)
+              return { path = file }
+            end)
+            :totable(),
+          maxWorkers = params.options.maxWorkers,
+          process_item = hooks.on_before_edit_file,
+          on_finish = function(status, errorMessage)
+            finish(status, errorMessage, files)
+          end,
+        })
+      else
+        finish('success', nil, files)
+        return
+      end
+    end, function(finish, files)
+      return replaceInMatchedFiles({
+        files = files,
+        inputs = params.inputs,
+        options = params.options,
+        replacement_eval_fn = replacement_eval_fn,
+        report_progress = function(count)
+          report_progress({ type = 'update_count', count = count })
+        end,
+        on_finish = finish,
+      })
+    end)(on_finish)
+  end
 end
 
 return M
