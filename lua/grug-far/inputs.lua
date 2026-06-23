@@ -206,18 +206,62 @@ function M.getInputAtRow(context, buf, row)
   end
 end
 
+--- extracts the mapping of the given lhs, mode, and buffer as a lua function.
+--- this allows programmatic triggering of the mapping's behavior even if it ends up being remapped later.
+--- smartInputHandling uses this to respect user mappings instead of assuming default behaviors.
+---
+--- specifically, we "copy" a keymap using maparg + mapset to a new, unique <Plug> lhs,
+--- and return a function that uses feedkeys to trigger the internal lhs.
+---@param buf integer
+---@param mode string
+---@param lhs string
+---@return fun() fallback
+local function extractMapping(buf, mode, lhs)
+  local mapping_data = vim.api.nvim_buf_call(buf, function()
+    return vim.fn.maparg(lhs, mode, false, true)
+  end)
+
+  -- no user mapping; simply re-send the key
+  if vim.tbl_isempty(mapping_data) then
+    local keycodes = vim.keycode(lhs)
+    return function()
+      vim.api.nvim_feedkeys(keycodes, 'n', false)
+    end
+  end
+
+  -- user mapping exists; copy it to a private lhs using a <Plug> prefix
+  local private_lhs = '<Plug>grug-far-fallback[' .. mapping_data.lhs .. ']'
+  local private_lhs_keycodes = vim.keycode('<Plug>')
+    .. 'grug-far-fallback['
+    .. mapping_data.lhsraw
+    .. ']'
+  mapping_data.lhs = private_lhs
+  mapping_data.lhsraw = private_lhs_keycodes
+  mapping_data.lhsrawalt = nil
+  mapping_data.buffer = 1 -- force buffer-local mapping in the grug-far buffer
+
+  vim.api.nvim_buf_call(buf, function()
+    vim.fn.mapset(mode, false, mapping_data)
+  end)
+
+  return function()
+    vim.api.nvim_feedkeys(private_lhs_keycodes, 'm', false)
+  end
+end
+
 --- special logic for paste below if in the context of an input
 --- if input is empty, prevents extra newline
 --- if on last line of input, temporarily adds a newline in order to prevent breaking out of it
 ---@param context grug.far.Context
 ---@param buf integer
 ---@param is_visual? boolean
-local function pasteBelow(context, buf, is_visual)
+---@param fallbacks table<string, fun()> fall-through handlers keyed by paste cmd ('p'/'P')
+local function pasteBelow(context, buf, is_visual, fallbacks)
   local win = vim.fn.bufwinid(buf)
   local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(win))
   local input = M.getInputAtRow(context, buf, cursor_row - 1)
   if not input then
-    vim.api.nvim_feedkeys('p', 'n', false)
+    fallbacks.p()
     return
   end
 
@@ -225,7 +269,7 @@ local function pasteBelow(context, buf, is_visual)
   if not is_visual then
     if input.end_row > input.start_row and cursor_row - 1 < input.end_row then
       -- we have a trailing line, nothing extra to do
-      vim.api.nvim_feedkeys('p', 'n', false)
+      fallbacks.p()
       return
     end
 
@@ -247,8 +291,9 @@ local function pasteBelow(context, buf, is_visual)
       vim.api.nvim_buf_set_lines(buf, input.end_row, input.end_row + 1, true, {})
     end
   end
+  fallbacks[pasteCmd]()
   local keys = vim.api.nvim_replace_termcodes(
-    pasteCmd .. '<esc><cmd>lua require("grug-far.inputs")._pasteBelowCallback()<cr>',
+    '<esc><cmd>lua require("grug-far.inputs")._pasteBelowCallback()<cr>',
     true,
     false,
     true
@@ -262,13 +307,14 @@ end
 ---@param context grug.far.Context
 ---@param buf integer
 ---@param is_visual? boolean
-local function pasteAbove(context, buf, is_visual)
+---@param fallbacks table<string, fun()> fall-through handlers keyed by paste cmd ('p'/'P')
+local function pasteAbove(context, buf, is_visual, fallbacks)
   local win = vim.fn.bufwinid(buf)
   local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(win))
 
   local input = M.getInputAtRow(context, buf, cursor_row - 1)
   if not input then
-    vim.api.nvim_feedkeys('P', 'n', false)
+    fallbacks.P()
     return
   end
 
@@ -277,7 +323,7 @@ local function pasteAbove(context, buf, is_visual)
   if not is_visual then
     if input.end_row > input.start_row and cursor_row - 1 < input.end_row then
       -- we have a trailing line, nothing extra to do
-      vim.api.nvim_feedkeys('P', 'n', false)
+      fallbacks.P()
       return
     end
 
@@ -300,8 +346,9 @@ local function pasteAbove(context, buf, is_visual)
       vim.api.nvim_buf_set_lines(buf, input.end_row, input.end_row + 1, true, {})
     end
   end
+  fallbacks.P()
   local keys = vim.api.nvim_replace_termcodes(
-    'P<esc><cmd>lua require("grug-far.inputs")._pasteAboveCallback()<cr>',
+    '<esc><cmd>lua require("grug-far.inputs")._pasteAboveCallback()<cr>',
     true,
     false,
     true
@@ -313,12 +360,13 @@ end
 --- if cursor is on last line of input, prevent breaking into next input
 ---@param context grug.far.Context
 ---@param buf integer
-local function openBelow(context, buf)
+---@param fallback fun() fall-through handler for the `o` key
+local function openBelow(context, buf, fallback)
   local win = vim.fn.bufwinid(buf)
   local cursor_row = unpack(vim.api.nvim_win_get_cursor(win))
   local input = M.getInputAtRow(context, buf, cursor_row - 1)
   if not input then
-    vim.api.nvim_feedkeys('o', 'n', false)
+    fallback()
     return
   end
 
@@ -332,6 +380,9 @@ end
 ---@param context grug.far.Context
 local function setupInputBoundaryBackspace(buf, context)
   local function setupDeletionKey(key, shouldBlock)
+    -- capture any pre-existing mapping (e.g. autopairs) before installing ours,
+    -- so we can fall through to it instead of clobbering it
+    local fallback = extractMapping(buf, 'i', key)
     vim.api.nvim_buf_set_keymap(buf, 'i', key, '', {
       noremap = true,
       silent = true,
@@ -343,7 +394,7 @@ local function setupInputBoundaryBackspace(buf, context)
           return
         end
 
-        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(key, true, false, true), 'n', false)
+        fallback()
       end,
     })
   end
@@ -377,41 +428,52 @@ end
 ---@param context grug.far.Context
 ---@param buf integer
 function M.bindInputSaavyKeys(context, buf)
-  vim.api.nvim_buf_set_keymap(buf, 'n', 'p', '', {
-    noremap = true,
-    nowait = true,
-    callback = function()
-      pasteBelow(context, buf)
-    end,
-  })
-  vim.api.nvim_buf_set_keymap(buf, 'v', 'p', '', {
-    noremap = true,
-    nowait = true,
-    callback = function()
-      pasteBelow(context, buf, true)
-    end,
-  })
-  vim.api.nvim_buf_set_keymap(buf, 'n', 'P', '', {
-    noremap = true,
-    nowait = true,
-    callback = function()
-      pasteAbove(context, buf)
-    end,
-  })
-  vim.api.nvim_buf_set_keymap(buf, 'v', 'P', '', {
-    noremap = true,
-    nowait = true,
-    callback = function()
-      pasteAbove(context, buf, true)
-    end,
-  })
-  vim.api.nvim_buf_set_keymap(buf, 'n', 'o', '', {
-    noremap = true,
-    nowait = true,
-    callback = function()
-      openBelow(context, buf)
-    end,
-  })
+  do
+    local fallbacks = { p = extractMapping(buf, 'n', 'p'), P = extractMapping(buf, 'n', 'P') }
+    vim.api.nvim_buf_set_keymap(buf, 'n', 'p', '', {
+      noremap = true,
+      nowait = true,
+      callback = function()
+        pasteBelow(context, buf, false, fallbacks)
+      end,
+    })
+    vim.api.nvim_buf_set_keymap(buf, 'n', 'P', '', {
+      noremap = true,
+      nowait = true,
+      callback = function()
+        pasteAbove(context, buf, false, fallbacks)
+      end,
+    })
+  end
+
+  do
+    local fallbacks = { p = extractMapping(buf, 'v', 'p'), P = extractMapping(buf, 'v', 'P') }
+    vim.api.nvim_buf_set_keymap(buf, 'v', 'p', '', {
+      noremap = true,
+      nowait = true,
+      callback = function()
+        pasteBelow(context, buf, true, fallbacks)
+      end,
+    })
+    vim.api.nvim_buf_set_keymap(buf, 'v', 'P', '', {
+      noremap = true,
+      nowait = true,
+      callback = function()
+        pasteAbove(context, buf, true, fallbacks)
+      end,
+    })
+  end
+
+  do
+    local fallback = extractMapping(buf, 'n', 'o')
+    vim.api.nvim_buf_set_keymap(buf, 'n', 'o', '', {
+      noremap = true,
+      nowait = true,
+      callback = function()
+        openBelow(context, buf, fallback)
+      end,
+    })
+  end
 
   if context.options.backspaceEol then
     local isSetUp = false
