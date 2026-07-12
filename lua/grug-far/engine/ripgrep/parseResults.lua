@@ -67,6 +67,11 @@ local function addResultLines(
 )
   local numlines = #lines
   local first_range = ranges[1]
+  local match_first_line = first_range.start.line
+  local match_end_line = first_range['end'].line
+  local start_lnum = bufrange and match_first_line + bufrange.start_row - 1 or match_first_line
+  local end_lnum = bufrange and match_end_line + bufrange.start_row - 1 or match_end_line
+
   for j, resultLine in ipairs(resultLines) do
     local current_line = numlines + j - 1
     local current_line_number = first_range.start.line + j - 1
@@ -78,6 +83,11 @@ local function addResultLines(
     end
     resultLine = utils.getLineWithoutCarriageReturn(resultLine)
 
+    local match_end_col
+    if column_number then
+      match_end_col = first_range['end'].column
+    end
+
     local mark = {
       type = ResultMarkType.SourceLocation,
       start_line = current_line,
@@ -88,6 +98,9 @@ local function addResultLines(
         filename = file_name,
         lnum = lnum,
         col = column_number,
+        end_col = match_end_col,
+        start_lnum = start_lnum,
+        end_lnum = end_lnum,
         text = resultLine,
       },
       sign = sign,
@@ -100,6 +113,7 @@ local function addResultLines(
     table.insert(marks, mark)
 
     if matchHighlightType then
+      local line_submatches = {}
       for _, range in ipairs(ranges) do
         if range.start.line <= current_line_number and range['end'].line >= current_line_number then
           table.insert(highlights, {
@@ -110,7 +124,15 @@ local function addResultLines(
             end_col = range['end'].line == current_line_number and range['end'].column - 1
               or #resultLine,
           })
+          local col = range.start.line == current_line_number and range.start.column or 1
+          local end_col = range['end'].line == current_line_number and range['end'].column
+            or (#resultLine + 1)
+          table.insert(line_submatches, { col = col, end_col = end_col })
         end
+      end
+
+      if #line_submatches > 1 then
+        mark.location.submatches = line_submatches
       end
     end
 

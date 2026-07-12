@@ -39,6 +39,7 @@ local highlights = {
 
   GrugFarVisualBufrange = { default = true, link = 'Visual' },
   GrugFarPreview = { default = true, link = 'Search' },
+  GrugFarCurrentMatch = { default = true, link = 'DiffText' },
 }
 
 ---@private

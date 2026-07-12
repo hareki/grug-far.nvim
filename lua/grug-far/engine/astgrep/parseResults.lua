@@ -56,6 +56,11 @@ local function addResultLines(
   mark_opts
 )
   local numlines = #lines
+  local match_first_line = range.start.line
+  local match_end_line = range['end'].line
+  local start_lnum = bufrange and bufrange.start_row + match_first_line or match_first_line + 1
+  local end_lnum = bufrange and bufrange.start_row + match_end_line or match_end_line + 1
+
   for j, resultLine in ipairs(resultLines) do
     local current_line = numlines + j - 1
     local isLastLine = j == #resultLines
@@ -67,6 +72,11 @@ local function addResultLines(
     end
     resultLine = utils.getLineWithoutCarriageReturn(resultLine)
 
+    local match_end_col
+    if column_number then
+      match_end_col = range['end'].column + 1
+    end
+
     local mark = {
       type = ResultMarkType.SourceLocation,
       start_line = current_line,
@@ -77,6 +87,9 @@ local function addResultLines(
         filename = file_name,
         lnum = lnum,
         col = column_number,
+        end_col = match_end_col,
+        start_lnum = start_lnum,
+        end_lnum = end_lnum,
         text = resultLine,
       },
       sign = sign,
