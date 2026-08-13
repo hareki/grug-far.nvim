@@ -380,21 +380,26 @@ function M.setupBuffer(win, buf, context, on_ready)
     end
   end
 
-  local function handleBufferChange()
-    render(buf, context)
-    updateBufName(buf, context)
-
-    local isInsertMode = vim.fn.mode():lower():find('i') ~= nil
-    if not (context.state.normalModeSearch and isInsertMode) then
-      searchOnChange()
-    end
-  end
-
   -- set up re-render on change
-  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
-    group = context.augroup,
-    buffer = buf,
-    callback = handleBufferChange,
+  vim.api.nvim_buf_attach(buf, false, {
+    on_lines = vim.schedule_wrap(function(_, _, _, first, _, new_last)
+      if context.state.bufClosed then
+        return
+      end
+
+      local headerRow = inputs.getHeaderRow(context, buf)
+      if first <= headerRow then
+        render(buf, context)
+        updateBufName(buf, context)
+
+        local isInsertMode = vim.fn.mode():lower():find('i') ~= nil
+        if not (context.state.normalModeSearch and isInsertMode) then
+          searchOnChange()
+        end
+      else
+        resultsList.markUnsyncedLines(buf, context, first, new_last)
+      end
+    end),
   })
   vim.api.nvim_create_autocmd({ 'WinResized' }, {
     group = context.augroup,
@@ -404,7 +409,7 @@ function M.setupBuffer(win, buf, context, on_ready)
       end)
 
       if isWindowAffected then
-        handleBufferChange()
+        render(buf, context)
       end
     end,
   })
@@ -416,14 +421,6 @@ function M.setupBuffer(win, buf, context, on_ready)
         searchOnChange()
       end
     end,
-  })
-  vim.api.nvim_buf_attach(buf, false, {
-    on_bytes = vim.schedule_wrap(function(_, _, _, start_row, _, _, _, _, _, new_end_row_offset)
-      if context.state.bufClosed then
-        return
-      end
-      resultsList.markUnsyncedLines(buf, context, start_row, start_row + new_end_row_offset)
-    end),
   })
 
   -- do the initial render
@@ -453,6 +450,7 @@ function M.setupBuffer(win, buf, context, on_ready)
       end
 
       render(buf, context)
+      utils.fixShowTopVirtLines(context, buf)
       is_ready = true
       on_ready()
 

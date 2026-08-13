@@ -1,7 +1,6 @@
 local help = require('grug-far.render.help')
 local renderInput = require('grug-far.render.input')
 local renderResults = require('grug-far.render.results')
-local utils = require('grug-far.utils')
 
 ---@param buf integer
 ---@param context grug.far.Context
@@ -53,7 +52,6 @@ local function render(buf, context)
 
     lineNr = lineNr + 1
   end
-  utils.fixShowTopVirtLines(context, buf)
 
   renderResults({
     buf = buf,
